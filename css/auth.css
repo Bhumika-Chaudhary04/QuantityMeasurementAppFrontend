@@ -234,10 +234,6 @@ body {
   box-shadow: 0 0 0 4px rgba(74,108,247,0.1);
 }
 
-.field-input.error {
-  border-color: var(--danger);
-}
-
 /* ---- PASSWORD ---- */
 .password-wrap {
   position: relative;

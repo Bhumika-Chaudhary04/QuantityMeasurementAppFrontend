@@ -14,7 +14,7 @@ function togglePw(inputId, btn) {
   }
 }
 
-// ---- SHOW ALERT ----
+// ---- SHOW / HIDE ALERT ----
 function showAlert(id, message, type) {
   const alert = document.getElementById(id);
   alert.textContent = message;
@@ -32,14 +32,14 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-// ---- PASSWORD STRENGTH (signup) ----
+// ---- PASSWORD STRENGTH ----
 function checkStrength(password) {
   let score = 0;
-  if (password.length >= 6)  score++;
-  if (password.length >= 10) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
+  if (password.length >= 6)             score++;
+  if (password.length >= 10)            score++;
+  if (/[A-Z]/.test(password))          score++;
+  if (/[0-9]/.test(password))          score++;
+  if (/[^A-Za-z0-9]/.test(password))  score++;
   return score;
 }
 
@@ -75,103 +75,74 @@ function handleLogin() {
   const email    = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
 
-  // Basic validation
   if (!email || !password) {
-    showAlert('loginAlert', 'Please fill in all fields.', 'error');
-    return;
+    showAlert('loginAlert', 'Please fill in all fields.', 'error'); return;
   }
   if (!isValidEmail(email)) {
-    showAlert('loginAlert', 'Please enter a valid email address.', 'error');
-    return;
+    showAlert('loginAlert', 'Please enter a valid email address.', 'error'); return;
   }
   if (password.length < 6) {
-    showAlert('loginAlert', 'Password must be at least 6 characters.', 'error');
-    return;
+    showAlert('loginAlert', 'Password must be at least 6 characters.', 'error'); return;
   }
 
-  // Check against stored users
   const users = JSON.parse(localStorage.getItem('quanment_users') || '[]');
   const user  = users.find(u => u.email === email && u.password === password);
 
   if (!user) {
-    showAlert('loginAlert', 'Invalid email or password. Try again.', 'error');
-    return;
+    showAlert('loginAlert', 'Invalid email or password. Try again.', 'error'); return;
   }
 
-  // Save session
   localStorage.setItem('quanment_session', JSON.stringify({
-    name:  user.name,
-    email: user.email,
-    initials: user.initials
+    name: user.name, email: user.email, initials: user.initials
   }));
 
   showAlert('loginAlert', 'Login successful! Redirecting...', 'success');
-
-  setTimeout(() => {
-    window.location.href = 'dashboard.html';
-  }, 800);
+  setTimeout(() => { window.location.href = 'dashboard.html'; }, 800);
 }
 
 // ---- SIGNUP ----
 function handleSignup() {
   hideAlert('signupAlert');
 
-  const firstName  = document.getElementById('firstName').value.trim();
-  const lastName   = document.getElementById('lastName').value.trim();
-  const email      = document.getElementById('signupEmail').value.trim();
-  const password   = document.getElementById('signupPassword').value;
-  const confirm    = document.getElementById('confirmPassword').value;
-  const agreed     = document.getElementById('agreeTerms').checked;
+  const firstName = document.getElementById('firstName').value.trim();
+  const lastName  = document.getElementById('lastName').value.trim();
+  const email     = document.getElementById('signupEmail').value.trim();
+  const password  = document.getElementById('signupPassword').value;
+  const confirm   = document.getElementById('confirmPassword').value;
+  const agreed    = document.getElementById('agreeTerms').checked;
 
-  // Validation
   if (!firstName || !lastName || !email || !password || !confirm) {
-    showAlert('signupAlert', 'Please fill in all fields.', 'error');
-    return;
+    showAlert('signupAlert', 'Please fill in all fields.', 'error'); return;
   }
   if (!isValidEmail(email)) {
-    showAlert('signupAlert', 'Please enter a valid email address.', 'error');
-    return;
+    showAlert('signupAlert', 'Please enter a valid email address.', 'error'); return;
   }
   if (password.length < 6) {
-    showAlert('signupAlert', 'Password must be at least 6 characters.', 'error');
-    return;
+    showAlert('signupAlert', 'Password must be at least 6 characters.', 'error'); return;
   }
   if (password !== confirm) {
-    showAlert('signupAlert', 'Passwords do not match.', 'error');
-    return;
+    showAlert('signupAlert', 'Passwords do not match.', 'error'); return;
   }
   if (!agreed) {
-    showAlert('signupAlert', 'Please agree to the Terms & Conditions.', 'error');
-    return;
+    showAlert('signupAlert', 'Please agree to the Terms & Conditions.', 'error'); return;
   }
 
-  // Check if email already exists
   const users = JSON.parse(localStorage.getItem('quanment_users') || '[]');
   if (users.find(u => u.email === email)) {
-    showAlert('signupAlert', 'An account with this email already exists.', 'error');
-    return;
+    showAlert('signupAlert', 'An account with this email already exists.', 'error'); return;
   }
 
-  // Save user
   const initials = (firstName[0] + lastName[0]).toUpperCase();
-  users.push({
-    name: firstName + ' ' + lastName,
-    email,
-    password,
-    initials
-  });
+  users.push({ name: firstName + ' ' + lastName, email, password, initials });
   localStorage.setItem('quanment_users', JSON.stringify(users));
 
   showAlert('signupAlert', 'Account created! Redirecting to login...', 'success');
-
-  setTimeout(() => {
-    window.location.href = 'index.html';
-  }, 1000);
+  setTimeout(() => { window.location.href = 'index.html'; }, 1000);
 }
 
-// ---- ENTER KEY SUPPORT ----
+// ---- ENTER KEY ----
 document.addEventListener('keydown', function (e) {
   if (e.key !== 'Enter') return;
-  if (document.getElementById('loginEmail'))   handleLogin();
-  if (document.getElementById('signupEmail'))  handleSignup();
+  if (document.getElementById('loginEmail'))  handleLogin();
+  if (document.getElementById('signupEmail')) handleSignup();
 });
