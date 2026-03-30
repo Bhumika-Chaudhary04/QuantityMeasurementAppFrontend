@@ -1,67 +1,112 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Quanment – Login</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/auth.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/auth.css" />
 </head>
 <body>
-  <div class="auth-container">
+  <div class="auth-layout">
+    
+    <!-- LEFT SIDE -->
+    <section class="auth-left">
+      <div class="auth-overlay"></div>
 
-    <!-- LEFT PANEL -->
-    <div class="auth-left">
       <div class="brand">
         <div class="brand-icon">Q</div>
-        <span class="brand-name">Quanment</span>
+        <div>
+          <div class="brand-name">Quanment</div>
+          <div class="brand-sub">Smart Unit Converter</div>
+        </div>
       </div>
-      <h1 class="tagline">Measure everything<br><span class="accent">effortlessly.</span></h1>
-      <p class="sub">Convert, add, subtract, multiply and divide across length, volume and more — all in one place.</p>
-      <div class="features">
-        <div class="feature-pill">📏 Length</div>
-        <div class="feature-pill">🌡️ Temperature</div>
-        <div class="feature-pill">🧪 Volume</div>
-        <div class="feature-pill">⚖️ Weight</div>
-        <div class="feature-pill">➕ Arithmetic</div>
-      </div>
-    </div>
 
-    <!-- RIGHT PANEL -->
-    <div class="auth-right">
+      <div class="left-content">
+        <span class="mini-badge">Modern Measurement Workspace</span>
+        <h1>Convert, compare and calculate with ease.</h1>
+        <p>
+          A smart and elegant place to work with length, temperature, volume and weight conversions.
+        </p>
+
+        <div class="feature-list">
+          <div class="feature-item">📏 Unit conversion</div>
+          <div class="feature-item">⚖️ Arithmetic operations</div>
+          <div class="feature-item">🌡️ Smart temperature rules</div>
+          <div class="feature-item">🧠 Comparison support</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT SIDE -->
+    <section class="auth-right">
       <div class="auth-card">
-        <h2 class="card-title">Welcome back</h2>
-        <p class="card-sub">Sign in to your account</p>
+
+        <div class="card-header">
+          <span class="card-chip">Welcome Back</span>
+          <h2>Sign in</h2>
+          <p>Continue to your Quanment dashboard</p>
+        </div>
 
         <div class="alert" id="loginAlert"></div>
 
-        <div class="field-group">
-          <label class="field-label">Email</label>
-          <input class="field-input" type="email" id="loginEmail" placeholder="you@example.com">
-        </div>
+        <form id="loginForm" novalidate>
 
-        <div class="field-group">
-          <label class="field-label">Password</label>
-          <div class="password-wrap">
-            <input class="field-input" type="password" id="loginPassword" placeholder="••••••••">
-            <button class="toggle-pw" onclick="togglePw('loginPassword', this)">👁</button>
+          <!-- EMAIL -->
+          <div class="field-group">
+            <label for="loginEmail">Email</label>
+            <input class="field-input" type="email" id="loginEmail" placeholder="you@example.com" />
+            <small class="field-error" id="loginEmailError"></small>
           </div>
-        </div>
 
-        <div class="remember-row">
-          <label class="checkbox-label">
-            <input type="checkbox" id="remember"> Remember me
-          </label>
-          <a class="forgot-link" href="#">Forgot password?</a>
-        </div>
+          <!-- PASSWORD -->
+          <div class="field-group">
+            <label for="loginPassword">Password</label>
+            <div class="password-wrap">
+              <input class="field-input" type="password" id="loginPassword" placeholder="Enter password" />
+              <button type="button" class="toggle-pw" onclick="togglePw('loginPassword', this)">👁</button>
+            </div>
+            <small class="field-error" id="loginPasswordError"></small>
+          </div>
 
-        <button class="auth-btn" onclick="handleLogin()">Sign In</button>
+          <!-- REMEMBER -->
+          <div class="remember-row">
+            <label class="checkbox-label">
+              <input type="checkbox" id="remember" />
+              <span>Remember me</span>
+            </label>
+          </div>
 
-        <p class="switch-text">Don't have an account? <a href="signup.html">Sign up</a></p>
+          <!-- LOGIN BUTTON -->
+          <button type="submit" class="auth-btn" id="loginBtn">Sign In</button>
+
+          <!-- DIVIDER -->
+          <div class="divider">
+            <span>OR</span>
+          </div>
+
+          <!-- GOOGLE LOGIN -->
+          <button type="button" class="google-btn" onclick="googleLogin()">
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" width="18" />
+            Continue with Google
+          </button>
+
+        </form>
+
+        <!-- SIGNUP -->
+        <p class="switch-text">
+          Don’t have an account?
+          <a href="signup.html">Sign up</a>
+        </p>
+        
+
       </div>
-    </div>
+    </section>
 
   </div>
+
   <script src="js/auth.js"></script>
 </body>
 </html>

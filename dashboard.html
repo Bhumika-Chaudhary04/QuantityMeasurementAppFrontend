@@ -1,171 +1,171 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quanment – Converter</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/dashboard.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quanment – Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/dashboard.css" />
 </head>
 <body>
-
-  <!-- NAV -->
-  <nav>
-    <div class="nav-logo">Quanment</div>
-    <div class="nav-links">
-      <a class="active" id="navConverter" onclick="showConverter()">Converter</a>
-      <a id="navHistory" onclick="showHistory()">History</a>
+  <nav class="topbar">
+    <div class="logo-wrap">
+      <div class="logo-icon">Q</div>
+      <div>
+        <div class="logo-text">Quanment</div>
+        <div class="logo-sub">Measurement Workspace</div>
+      </div>
     </div>
-    <div class="nav-right">
-      <div class="nav-user" id="navUser">JD</div>
-      <button class="logout-btn" onclick="handleLogout()">Logout</button>
+
+    <div class="topbar-right">
+      <span id="userName" class="user-name">User</span>
+      <button class="logout-btn" onclick="logout()">Logout</button>
     </div>
   </nav>
 
-  <!-- HERO BANNER -->
-  <div class="hero">Welcome To Quantity Measurement</div>
+  <main class="dashboard-container">
+    <section class="hero-card">
+      <div class="hero-left">
+        <span class="hero-badge">Dashboard</span>
+        <h1 id="welcomeText">Welcome to Quanment</h1>
+        <p>Convert, compare and calculate measurements with a cleaner and compact workspace.</p>
+      </div>
 
-  <!-- ══════════════════════════════════
-       CONVERTER SECTION
-  ══════════════════════════════════ -->
-  <div class="main" id="converterSection">
-
-    <!-- TYPE SELECTOR -->
-    <div class="section-label">Choose Type</div>
-    <div class="type-grid">
-      <div class="type-card active" onclick="setType('length', this)">
-        <span class="icon">📏</span>
-        <div class="label">Length</div>
-      </div>
-      <div class="type-card" onclick="setType('temperature', this)">
-        <span class="icon">🌡️</span>
-        <div class="label">Temperature</div>
-      </div>
-      <div class="type-card" onclick="setType('volume', this)">
-        <span class="icon">🧪</span>
-        <div class="label">Volume</div>
-      </div>
-      <div class="type-card" onclick="setType('weight', this)">
-        <span class="icon">⚖️</span>
-        <div class="label">Weight</div>
-      </div>
-    </div>
-
-    <!-- OPERATION SELECTOR -->
-    <div class="section-label">Choose Operation</div>
-    <div class="op-grid">
-      <div class="op-card active" onclick="setOperation('convert', this)" title="Convert">
-        <span class="op-icon">⇄</span>
-        <div class="op-label">Convert</div>
-      </div>
-      <div class="op-card" onclick="setOperation('add', this)" title="Addition">
-        <span class="op-icon">+</span>
-        <div class="op-label">Add</div>
-      </div>
-      <div class="op-card" onclick="setOperation('subtract', this)" title="Subtraction">
-        <span class="op-icon">−</span>
-        <div class="op-label">Subtract</div>
-      </div>
-      <div class="op-card" onclick="setOperation('multiply', this)" title="Multiplication">
-        <span class="op-icon">×</span>
-        <div class="op-label">Multiply</div>
-      </div>
-      <div class="op-card" onclick="setOperation('divide', this)" title="Division">
-        <span class="op-icon">÷</span>
-        <div class="op-label">Divide</div>
-      </div>
-    </div>
-
-    <!-- TEMPERATURE ARITHMETIC WARNING -->
-    <div class="temp-warning" id="tempWarning">
-      <span class="warn-icon">⚠️</span>
-      <div>
-        <strong>Arithmetic not available for Temperature</strong>
-        <p>Addition, subtraction, multiplication and division are not physically meaningful for temperature scales (°C, °F, K). Only conversion is supported.</p>
-      </div>
-    </div>
-
-    <!-- ── CONVERT PANEL ── -->
-    <div class="converter-panel" id="convertPanel">
-      <div class="converter-row">
-        <div class="field-group">
-          <div class="field-label">From</div>
-          <input class="number-input" type="number" id="fromVal" value="1" oninput="liveConvert()">
-          <select class="unit-select" id="fromUnit" onchange="liveConvert()"></select>
+      <div class="hero-right">
+        <div class="hero-mini-card">
+          <span>📏</span>
+          <strong>Conversions</strong>
+          <p>Smart and quick</p>
         </div>
-        <button class="swap-btn" onclick="swapUnits()" title="Swap">⇄</button>
-        <div class="field-group">
-          <div class="field-label">To</div>
-          <input class="number-input result-input" type="number" id="toVal" placeholder="—" readonly>
-          <select class="unit-select" id="toUnit" onchange="liveConvert()"></select>
+        <div class="hero-mini-card">
+          <span>🧠</span>
+          <strong>Compare</strong>
+          <p>Across units</p>
+        </div>
+        <div class="hero-mini-card">
+          <span>⚡</span>
+          <strong>Fast UI</strong>
+          <p>Less scrolling</p>
         </div>
       </div>
-      <button class="convert-btn" onclick="doConvert()">Convert →</button>
-      <div class="result-box" id="convertResultBox">
-        <div class="result-label">Result</div>
-        <div class="result-value" id="convertResultVal"></div>
-        <div class="result-desc" id="convertResultDesc"></div>
-      </div>
-    </div>
+    </section>
 
-    <!-- ── ARITHMETIC PANEL ── -->
-    <div class="converter-panel" id="arithmeticPanel" style="display:none;">
-
-      <!-- Same-unit arithmetic -->
-      <div class="arith-section">
-        <div class="arith-section-title" id="arithTitle">Add two lengths</div>
-
-        <div class="arith-row">
-          <!-- VALUE A -->
-          <div class="field-group arith-field">
-            <div class="field-label">Value A</div>
-            <input class="number-input" type="number" id="arithValA" value="1" oninput="liveArith()">
-            <select class="unit-select" id="arithUnitA" onchange="liveArith()"></select>
+    <section class="dashboard-grid">
+      <div class="left-panel">
+        <section class="tool-card">
+          <div class="tool-header">
+            <div>
+              <h2>Measurement Calculator</h2>
+              <p id="operationHint">Select your measurement type and operation.</p>
+            </div>
+            <div class="tool-actions-top">
+              <button class="secondary-btn small-btn" id="swapUnitsBtn" type="button">Swap Units</button>
+              <button class="secondary-btn small-btn" id="resetBtn" type="button">Reset</button>
+            </div>
           </div>
 
-          <!-- OPERATOR BADGE -->
-          <div class="op-badge" id="opBadge">+</div>
+          <div id="messageBox" class="message-box"></div>
 
-          <!-- VALUE B -->
-          <div class="field-group arith-field">
-            <div class="field-label">Value B</div>
-            <input class="number-input" type="number" id="arithValB" value="1" oninput="liveArith()">
-            <select class="unit-select" id="arithUnitB" onchange="liveArith()"></select>
+          <div class="tool-grid compact-two">
+            <div class="field-group">
+              <label for="measurementType">Measurement Type</label>
+              <select id="measurementType"></select>
+            </div>
+
+            <div class="field-group">
+              <label for="operation">Operation</label>
+              <select id="operation"></select>
+            </div>
           </div>
 
-          <!-- = -->
-          <div class="op-badge">=</div>
+          <div class="input-grid">
+            <div class="input-card">
+              <div class="card-top">
+                <h3>Quantity A</h3>
+                <span class="mini-chip" id="labelA">Primary input</span>
+              </div>
 
-          <!-- RESULT UNIT -->
-          <div class="field-group arith-field">
-            <div class="field-label">Result in</div>
-            <input class="number-input result-input" type="text" id="arithResult" placeholder="—" readonly>
-            <select class="unit-select" id="arithUnitResult" onchange="liveArith()"></select>
+              <div class="field-group">
+                <label for="valueA">Value</label>
+                <input type="number" id="valueA" placeholder="Enter first value" step="any" />
+              </div>
+
+              <div class="field-group">
+                <label for="unitA">Unit</label>
+                <select id="unitA"></select>
+              </div>
+            </div>
+
+            <div class="input-card" id="quantityBCard">
+              <div class="card-top">
+                <h3>Quantity B</h3>
+                <span class="mini-chip" id="labelB">Secondary input</span>
+              </div>
+
+              <div class="field-group">
+                <label for="valueB" id="valueBLabel">Value</label>
+                <input type="number" id="valueB" placeholder="Enter second value" step="any" />
+              </div>
+
+              <div class="field-group">
+                <label for="unitB" id="unitBLabel">Unit</label>
+                <select id="unitB"></select>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <button class="convert-btn" onclick="doArith()">Calculate →</button>
+          <div class="output-card" id="outputCard">
+            <div class="card-top">
+              <h3>Output Preferences</h3>
+              <span class="mini-chip">Choose result unit</span>
+            </div>
 
-        <div class="result-box" id="arithResultBox">
-          <div class="result-label">Result</div>
-          <div class="result-value" id="arithResultVal"></div>
-          <div class="result-desc" id="arithResultDesc"></div>
-        </div>
+            <div class="field-group">
+              <label for="outputUnit">Output Unit</label>
+              <select id="outputUnit"></select>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <button class="primary-btn" id="calculateBtn" type="button">Calculate</button>
+          </div>
+        </section>
       </div>
-    </div>
 
-  </div><!-- /.main -->
+      <div class="right-panel">
+        <section class="result-card highlight-card">
+          <div class="card-top">
+            <h3>Live Result</h3>
+            <span class="mini-chip">Output</span>
+          </div>
+          <div class="result-value" id="resultValue">—</div>
+          <p class="result-text" id="resultText">Your result will appear here.</p>
+          <div class="summary-box">
+            <p class="summary-line" id="summaryLine">No calculation yet.</p>
+            <p class="summary-line muted" id="statusLine">Ready.</p>
+          </div>
+        </section>
 
-  <!-- ══════════════════════════════════
-       HISTORY SECTION
-  ══════════════════════════════════ -->
-  <div class="history-panel" id="historySection">
-    <div class="history-header">
-      <div class="history-title">Conversion History</div>
-      <button class="clear-btn" onclick="clearHistory()">Clear All</button>
-    </div>
-    <div class="history-list" id="historyList"></div>
-  </div>
+        <section class="history-card">
+          <div class="history-header">
+            <h2>Calculation History</h2>
+            <span class="history-badge">Recent actions</span>
+          </div>
+
+          <div class="history-list" id="historyList">
+            <p class="empty-text">No history loaded yet.</p>
+          </div>
+
+          <div class="history-actions-bottom">
+            <button class="secondary-btn" id="loadHistoryBtn" type="button">Load History</button>
+            <button class="danger-btn" id="clearHistoryViewBtn" type="button">Clear History View</button>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
 
   <script src="js/dashboard.js"></script>
 </body>

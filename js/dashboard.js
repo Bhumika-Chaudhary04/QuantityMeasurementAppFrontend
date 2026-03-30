@@ -1,485 +1,548 @@
-/* ===========================
-   dashboard.js — Converter + Arithmetic
-   =========================== */
+const API_BASE = "http://localhost:8080";
 
-// ══════════════════════════════════════════════
-// CONVERSION DATA
-// ══════════════════════════════════════════════
-const TYPES = {
-  length: {
-    label: 'Length',
-    units: ['Metres', 'Centimetres', 'Kilometres', 'Miles', 'Yards', 'Feet', 'Inches', 'Millimetres'],
-    toBase: {
-      'Metres': 1, 'Centimetres': 0.01, 'Kilometres': 1000,
-      'Miles': 1609.344, 'Yards': 0.9144, 'Feet': 0.3048,
-      'Inches': 0.0254, 'Millimetres': 0.001
-    },
-    convert(val, from, to) {
-      return (val * this.toBase[from]) / this.toBase[to];
-    }
+function getStoredToken() {
+  return localStorage.getItem("quanmentToken") || sessionStorage.getItem("quanmentToken");
+}
+
+function getStoredUserName() {
+  return localStorage.getItem("quanmentUserName") || sessionStorage.getItem("quanmentUserName") || "User";
+}
+
+function getStoredUserEmail() {
+  return localStorage.getItem("quanmentUserEmail") || sessionStorage.getItem("quanmentUserEmail") || "";
+}
+
+function storeDashboardAuthFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("token");
+  const name = params.get("name");
+  const email = params.get("email");
+
+  if (!token) return;
+
+  localStorage.setItem("quanmentToken", token);
+  localStorage.setItem("quanmentUserName", name || "User");
+  localStorage.setItem("quanmentUserEmail", email || "");
+
+  window.history.replaceState({}, document.title, "dashboard.html");
+}
+
+storeDashboardAuthFromUrl();
+
+const MEASUREMENT_CONFIG = {
+  LENGTH: {
+    units: ["INCHES", "FEET", "YARDS", "CENTIMETERS"]
   },
-
-  temperature: {
-    label: 'Temperature',
-    units: ['Celsius', 'Fahrenheit', 'Kelvin'],
-    convert(val, from, to) {
-      let c;
-      if (from === 'Celsius')    c = val;
-      if (from === 'Fahrenheit') c = (val - 32) * 5 / 9;
-      if (from === 'Kelvin')     c = val - 273.15;
-      if (to === 'Celsius')    return c;
-      if (to === 'Fahrenheit') return c * 9 / 5 + 32;
-      if (to === 'Kelvin')     return c + 273.15;
-    }
+  WEIGHT: {
+    units: ["GRAM", "KILOGRAM", "POUND"]
   },
-
-  volume: {
-    label: 'Volume',
-    units: ['Litres', 'Millilitres', 'Cubic Metres', 'Gallons (US)', 'Gallons (UK)', 'Fluid Ounces', 'Cups', 'Tablespoons'],
-    toBase: {
-      'Litres': 1, 'Millilitres': 0.001, 'Cubic Metres': 1000,
-      'Gallons (US)': 3.78541, 'Gallons (UK)': 4.54609,
-      'Fluid Ounces': 0.0295735, 'Cups': 0.236588, 'Tablespoons': 0.0147868
-    },
-    convert(val, from, to) {
-      return (val * this.toBase[from]) / this.toBase[to];
-    }
+  VOLUME: {
+    units: ["MILLILITRE", "LITRE", "GALLON"]
   },
-
-  weight: {
-    label: 'Weight',
-    units: ['Kilograms', 'Grams', 'Milligrams', 'Metric Tonnes', 'Pounds', 'Ounces', 'Stone', 'Carats'],
-    toBase: {
-      'Kilograms': 1, 'Grams': 0.001, 'Milligrams': 0.000001,
-      'Metric Tonnes': 1000, 'Pounds': 0.453592, 'Ounces': 0.0283495,
-      'Stone': 6.35029, 'Carats': 0.0002
-    },
-    convert(val, from, to) {
-      return (val * this.toBase[from]) / this.toBase[to];
-    }
+  TEMPERATURE: {
+    units: ["CELSIUS", "FAHRENHEIT", "KELVIN"]
   }
 };
 
-// ══════════════════════════════════════════════
-// ARITHMETIC OPERATIONS
-//
-// Strategy: convert both values to the base unit,
-// perform the operation in base, then convert
-// the result to the chosen result unit.
-//
-// For multiply / divide the second operand is
-// treated as a SCALAR (dimensionless) because
-// multiplying e.g. 5 m × 3 m = 15 m² (different
-// dimension) is not meaningful here. We therefore
-// multiply/divide the first quantity's value by
-// the numeric value of B (already in base units).
-//
-// Temperature arithmetic is blocked entirely.
-// ══════════════════════════════════════════════
-const OPERATIONS = {
-  add: {
-    symbol: '+',
-    label:  'Add',
-    // A (in base) + B (in base) → result in base
-    calculate(aBase, bBase) { return aBase + bBase; },
-    description(aVal, aUnit, bVal, bUnit, resVal, resUnit) {
-      return `${aVal} ${aUnit}  +  ${bVal} ${bUnit}  =  ${resVal} ${resUnit}`;
-    }
-  },
-  subtract: {
-    symbol: '−',
-    label:  'Subtract',
-    calculate(aBase, bBase) { return aBase - bBase; },
-    description(aVal, aUnit, bVal, bUnit, resVal, resUnit) {
-      return `${aVal} ${aUnit}  −  ${bVal} ${bUnit}  =  ${resVal} ${resUnit}`;
-    }
-  },
-  multiply: {
-    symbol: '×',
-    label:  'Multiply',
-    // Multiply quantity A by scalar B (value in base)
-    calculate(aBase, bBase) { return aBase * bBase; },
-    description(aVal, aUnit, bVal, bUnit, resVal, resUnit) {
-      return `${aVal} ${aUnit}  ×  ${bVal} ${bUnit}  =  ${resVal} ${resUnit}`;
-    }
-  },
-  divide: {
-    symbol: '÷',
-    label:  'Divide',
-    calculate(aBase, bBase) {
-      if (bBase === 0) return NaN;   // division by zero
-      return aBase / bBase;
-    },
-    description(aVal, aUnit, bVal, bUnit, resVal, resUnit) {
-      return `${aVal} ${aUnit}  ÷  ${bVal} ${bUnit}  =  ${resVal} ${resUnit}`;
-    }
-  }
+const ALLOWED_OPERATIONS = {
+  LENGTH: ["convert", "compare", "add", "subtract", "divide"],
+  WEIGHT: ["convert", "compare", "add", "subtract", "divide"],
+  VOLUME: ["convert", "compare", "add", "subtract", "divide"],
+  TEMPERATURE: ["convert", "compare"]
 };
 
-// ══════════════════════════════════════════════
-// STATE
-// ══════════════════════════════════════════════
-let currentType      = 'length';
-let currentOperation = 'convert';
-let history          = JSON.parse(localStorage.getItem('quanment_history') || '[]');
+document.addEventListener("DOMContentLoaded", function () {
+  const token = getStoredToken();
+  const name = getStoredUserName();
 
-// ══════════════════════════════════════════════
-// INIT
-// ══════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', function () {
-  loadSession();
-  populateUnits();
-  updateOperationUI();
+  if (!token) {
+    window.location.href = "index.html";
+    return;
+  }
+
+  document.getElementById("welcomeText").textContent = `Welcome, ${name}!`;
+  document.getElementById("userName").textContent = name;
+
+  setupMeasurementTypes();
+  setupOperations();
+  setupUnits();
+  setupDynamicUI();
+
+  document.getElementById("measurementType").addEventListener("change", onMeasurementTypeChange);
+  document.getElementById("operation").addEventListener("change", setupDynamicUI);
+  document.getElementById("calculateBtn").addEventListener("click", handleCalculate);
+  document.getElementById("loadHistoryBtn").addEventListener("click", loadHistory);
+  document.getElementById("clearHistoryViewBtn").addEventListener("click", clearHistoryView);
+  document.getElementById("swapUnitsBtn").addEventListener("click", swapUnits);
+  document.getElementById("resetBtn").addEventListener("click", resetCalculator);
 });
 
-// ══════════════════════════════════════════════
-// SESSION
-// ══════════════════════════════════════════════
-function loadSession() {
-  const session = JSON.parse(localStorage.getItem('quanment_session') || 'null');
-  if (!session) { window.location.href = 'index.html'; return; }
-  const navUser = document.getElementById('navUser');
-  if (navUser) navUser.textContent = session.initials || 'U';
+function getAuthHeaders() {
+  const token = getStoredToken();
+  return {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${token}`
+  };
 }
 
-function handleLogout() {
-  localStorage.removeItem('quanment_session');
-  window.location.href = 'index.html';
+function onMeasurementTypeChange() {
+  setupOperations();
+  setupUnits();
+  setupDynamicUI();
 }
 
-// ══════════════════════════════════════════════
-// TYPE SELECTION
-// ══════════════════════════════════════════════
-function setType(type, el) {
-  currentType = type;
+function setupMeasurementTypes() {
+  const measurementType = document.getElementById("measurementType");
+  measurementType.innerHTML = Object.keys(MEASUREMENT_CONFIG)
+    .map(type => `<option value="${type}">${formatLabel(type)}</option>`)
+    .join("");
+}
 
-  // Update active card
-  document.querySelectorAll('.type-card').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
+function setupOperations() {
+  const type = document.getElementById("measurementType").value;
+  const operations = ALLOWED_OPERATIONS[type] || ["convert"];
 
-  // Disable arithmetic ops for temperature
-  const opCards = document.querySelectorAll('.op-card');
-  if (type === 'temperature') {
-    opCards.forEach(c => {
-      const op = c.dataset.op;
-      if (op && op !== 'convert') c.classList.add('disabled');
-    });
-    // Force back to convert
-    if (currentOperation !== 'convert') {
-      setOperation('convert', document.querySelector('.op-card[data-op="convert"]'));
-      return; // setOperation calls populateUnits + updateOperationUI
-    }
+  document.getElementById("operation").innerHTML = operations
+    .map(op => `<option value="${op}">${formatLabel(op)}</option>`)
+    .join("");
+}
+
+function setupUnits() {
+  const type = document.getElementById("measurementType").value;
+  const units = MEASUREMENT_CONFIG[type]?.units || [];
+
+  const options = units
+    .map(unit => `<option value="${unit}">${formatLabel(unit)}</option>`)
+    .join("");
+
+  document.getElementById("unitA").innerHTML = options;
+  document.getElementById("unitB").innerHTML = options;
+  document.getElementById("outputUnit").innerHTML = options;
+
+  if (units.length > 0) {
+    document.getElementById("unitA").value = units[0];
+    document.getElementById("outputUnit").value = units[0];
+  }
+
+  if (units.length > 1) {
+    document.getElementById("unitB").value = units[1];
+  } else if (units.length > 0) {
+    document.getElementById("unitB").value = units[0];
+  }
+}
+
+function setupDynamicUI() {
+  const type = document.getElementById("measurementType").value;
+  const operation = document.getElementById("operation").value;
+
+  const quantityBCard = document.getElementById("quantityBCard");
+  const valueBLabel = document.getElementById("valueBLabel");
+  const unitBLabel = document.getElementById("unitBLabel");
+  const valueB = document.getElementById("valueB");
+  const outputCard = document.getElementById("outputCard");
+  const operationHint = document.getElementById("operationHint");
+  const labelA = document.getElementById("labelA");
+  const labelB = document.getElementById("labelB");
+  const outputUnitLabel = document.getElementById("outputUnitLabel");
+  const outputBadge = document.getElementById("outputBadge");
+
+  clearMessage();
+  clearResult();
+
+  if (operation === "convert") {
+    quantityBCard.style.display = "block";
+    outputCard.style.display = "none";
+
+    valueBLabel.textContent = "Preview Value";
+    unitBLabel.textContent = "Convert To Unit";
+    valueB.value = "";
+    valueB.disabled = true;
+    valueB.placeholder = "Not needed";
+
+    labelA.textContent = "Convert from";
+    labelB.textContent = "Convert to";
+
+    operationHint.textContent = `Convert ${formatLabel(type)} from one unit to another using Spring Boot.`;
+  } else if (operation === "compare") {
+    quantityBCard.style.display = "block";
+    outputCard.style.display = "none";
+
+    valueBLabel.textContent = "Second Value";
+    unitBLabel.textContent = "Second Unit";
+    valueB.disabled = false;
+    valueB.placeholder = "Enter second value";
+
+    labelA.textContent = "First quantity";
+    labelB.textContent = "Second quantity";
+
+    operationHint.textContent = `Compare two ${formatLabel(type)} values using Spring Boot.`;
+  } else if (operation === "divide") {
+    quantityBCard.style.display = "block";
+    outputCard.style.display = "block";
+
+    valueBLabel.textContent = "Second Value";
+    unitBLabel.textContent = "Second Unit";
+    valueB.disabled = false;
+    valueB.placeholder = "Enter second value";
+
+    labelA.textContent = "Input A";
+    labelB.textContent = "Input B";
+
+    if (outputUnitLabel) outputUnitLabel.textContent = "Reference Unit";
+    if (outputBadge) outputBadge.textContent = "Choose reference unit";
+
+    operationHint.textContent = `Divide two ${formatLabel(type)} values using the selected reference unit.`;
   } else {
-    opCards.forEach(c => c.classList.remove('disabled'));
-  }
+    quantityBCard.style.display = "block";
+    outputCard.style.display = "block";
 
-  populateUnits();
-  updateOperationUI();
-  resetResults();
-}
+    valueBLabel.textContent = "Second Value";
+    unitBLabel.textContent = "Second Unit";
+    valueB.disabled = false;
+    valueB.placeholder = "Enter second value";
 
-// ══════════════════════════════════════════════
-// OPERATION SELECTION
-// ══════════════════════════════════════════════
-function setOperation(op, el) {
-  // Block arithmetic for temperature
-  if (currentType === 'temperature' && op !== 'convert') {
-    showTempWarning(true);
-    return;
-  }
+    labelA.textContent = "Input A";
+    labelB.textContent = "Input B";
 
-  currentOperation = op;
+    if (outputUnitLabel) outputUnitLabel.textContent = "Output Unit";
+    if (outputBadge) outputBadge.textContent = "Choose result unit";
 
-  document.querySelectorAll('.op-card').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-
-  updateOperationUI();
-  resetResults();
-  liveConvert();
-}
-
-// ══════════════════════════════════════════════
-// UPDATE UI: switch between convert / arith panels
-// ══════════════════════════════════════════════
-function updateOperationUI() {
-  const isConvert     = currentOperation === 'convert';
-  const isTempArith   = currentType === 'temperature' && !isConvert;
-
-  document.getElementById('convertPanel').style.display    = isConvert  ? 'block' : 'none';
-  document.getElementById('arithmeticPanel').style.display = !isConvert ? 'block' : 'none';
-
-  showTempWarning(isTempArith);
-
-  if (!isConvert) {
-    // Update operator badge
-    const op = OPERATIONS[currentOperation];
-    document.getElementById('opBadge').textContent = op.symbol;
-
-    // Update title
-    document.getElementById('arithTitle').textContent =
-      `${op.label} two ${TYPES[currentType].label.toLowerCase()} values`;
-
-    // Populate arithmetic unit dropdowns
-    populateArithUnits();
-    liveArith();
+    operationHint.textContent = `${formatLabel(operation)} two ${formatLabel(type)} values and choose the output unit.`;
   }
 }
 
-function showTempWarning(show) {
-  const w = document.getElementById('tempWarning');
-  if (show) w.classList.add('show');
-  else      w.classList.remove('show');
-}
-
-// ══════════════════════════════════════════════
-// POPULATE UNIT DROPDOWNS
-// ══════════════════════════════════════════════
-function populateUnits() {
-  const units = TYPES[currentType].units;
-
-  ['fromUnit', 'toUnit'].forEach((id, i) => {
-    const sel = document.getElementById(id);
-    sel.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
-    sel.selectedIndex = i === 0 ? 0 : 1;
-  });
-
-  document.getElementById('fromVal').value = '1';
-  document.getElementById('toVal').value   = '';
-  liveConvert();
-}
-
-function populateArithUnits() {
-  const units = TYPES[currentType].units;
-
-  ['arithUnitA', 'arithUnitB', 'arithUnitResult'].forEach((id, i) => {
-    const sel = document.getElementById(id);
-    sel.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
-    sel.selectedIndex = 0;
-  });
-
-  document.getElementById('arithValA').value = '1';
-  document.getElementById('arithValB').value = '1';
-  document.getElementById('arithResult').value = '';
-}
-
-// ══════════════════════════════════════════════
-// FORMAT NUMBER
-// ══════════════════════════════════════════════
-function formatNum(n) {
-  if (isNaN(n) || !isFinite(n)) return '—';
-  if (Math.abs(n) >= 1e9 || (Math.abs(n) < 0.0001 && n !== 0)) {
-    return n.toExponential(4);
-  }
-  return parseFloat(n.toPrecision(8)).toString();
-}
-
-// ══════════════════════════════════════════════
-// LIVE CONVERT (standard conversion)
-// ══════════════════════════════════════════════
-function liveConvert() {
-  if (currentOperation !== 'convert') return;
-  const val   = parseFloat(document.getElementById('fromVal').value);
-  const fromU = document.getElementById('fromUnit').value;
-  const toU   = document.getElementById('toUnit').value;
-
-  if (isNaN(val)) { document.getElementById('toVal').value = ''; return; }
-  const result = TYPES[currentType].convert(val, fromU, toU);
-  document.getElementById('toVal').value = formatNum(result);
-}
-
-// ══════════════════════════════════════════════
-// LIVE ARITHMETIC
-// ══════════════════════════════════════════════
-function liveArith() {
-  if (currentOperation === 'convert') return;
-
-  const valA   = parseFloat(document.getElementById('arithValA').value);
-  const valB   = parseFloat(document.getElementById('arithValB').value);
-  const unitA  = document.getElementById('arithUnitA').value;
-  const unitB  = document.getElementById('arithUnitB').value;
-  const unitR  = document.getElementById('arithUnitResult').value;
-
-  if (isNaN(valA) || isNaN(valB)) {
-    document.getElementById('arithResult').value = '';
-    return;
-  }
-
-  const resultBase = computeArith(valA, unitA, valB, unitB);
-  if (isNaN(resultBase)) {
-    document.getElementById('arithResult').value = 'Error';
-    return;
-  }
-
-  // Convert result from base unit to chosen result unit
-  const typeObj = TYPES[currentType];
-  const resultInUnit = resultBase / typeObj.toBase[unitR];
-  document.getElementById('arithResult').value = formatNum(resultInUnit);
-}
-
-// Core arithmetic in base units
-function computeArith(valA, unitA, valB, unitB) {
-  const typeObj = TYPES[currentType];
-  const baseA   = valA * typeObj.toBase[unitA];
-  const baseB   = valB * typeObj.toBase[unitB];
-  return OPERATIONS[currentOperation].calculate(baseA, baseB);
-}
-
-// ══════════════════════════════════════════════
-// CONVERT BUTTON (standard)
-// ══════════════════════════════════════════════
-function doConvert() {
-  const val   = parseFloat(document.getElementById('fromVal').value);
-  const fromU = document.getElementById('fromUnit').value;
-  const toU   = document.getElementById('toUnit').value;
-  if (isNaN(val)) return;
-
-  const result    = TYPES[currentType].convert(val, fromU, toU);
-  const formatted = formatNum(result);
-
-  showResultBox('convertResultBox', formatted + ' ' + toU,
-    `${val} ${fromU}  =  ${formatted} ${toU}`);
-
-  saveHistory({
-    expr:   `${val} ${fromU}  →  ${toU}`,
-    result: formatted + ' ' + toU,
-    op:     'convert',
-    type:   currentType
-  });
-}
-
-// ══════════════════════════════════════════════
-// ARITHMETIC CALCULATE BUTTON
-// ══════════════════════════════════════════════
-function doArith() {
-  const valA  = parseFloat(document.getElementById('arithValA').value);
-  const valB  = parseFloat(document.getElementById('arithValB').value);
-  const unitA = document.getElementById('arithUnitA').value;
-  const unitB = document.getElementById('arithUnitB').value;
-  const unitR = document.getElementById('arithUnitResult').value;
-
-  if (isNaN(valA) || isNaN(valB)) return;
-
-  const typeObj    = TYPES[currentType];
-  const resultBase = computeArith(valA, unitA, valB, unitB);
-
-  if (isNaN(resultBase)) {
-    showResultBox('arithResultBox', 'Division by zero', 'Cannot divide by zero.');
-    return;
-  }
-
-  const resultInUnit = resultBase / typeObj.toBase[unitR];
-  const formatted    = formatNum(resultInUnit);
-  const op           = OPERATIONS[currentOperation];
-  const desc         = op.description(valA, unitA, valB, unitB, formatted, unitR);
-
-  showResultBox('arithResultBox', formatted + ' ' + unitR, desc);
-
-  saveHistory({
-    expr:   `${valA} ${unitA}  ${op.symbol}  ${valB} ${unitB}`,
-    result: formatted + ' ' + unitR,
-    op:     currentOperation,
-    type:   currentType
-  });
-}
-
-// ══════════════════════════════════════════════
-// SWAP UNITS (convert panel only)
-// ══════════════════════════════════════════════
 function swapUnits() {
-  const fromUnit = document.getElementById('fromUnit');
-  const toUnit   = document.getElementById('toUnit');
-  const fromVal  = document.getElementById('fromVal');
-  const toVal    = document.getElementById('toVal');
+  const unitA = document.getElementById("unitA");
+  const unitB = document.getElementById("unitB");
+  const valueA = document.getElementById("valueA");
+  const valueB = document.getElementById("valueB");
+  const operation = document.getElementById("operation").value;
 
-  const tmpUnit  = fromUnit.value;
-  fromUnit.value = toUnit.value;
-  toUnit.value   = tmpUnit;
+  const tempUnit = unitA.value;
+  unitA.value = unitB.value;
+  unitB.value = tempUnit;
 
-  fromVal.value  = toVal.value || fromVal.value;
-  liveConvert();
+  if (operation !== "convert") {
+    const tempValue = valueA.value;
+    valueA.value = valueB.value;
+    valueB.value = tempValue;
+  }
+
+  showMessage("Units swapped successfully.", "info");
 }
 
-// ══════════════════════════════════════════════
-// RESULT BOX HELPERS
-// ══════════════════════════════════════════════
-function showResultBox(boxId, valueText, descText) {
-  const box = document.getElementById(boxId);
-  // find child elements by class inside the box
-  box.querySelector('.result-value').textContent = valueText;
-  box.querySelector('.result-desc').textContent  = descText;
-  box.classList.add('show');
+function resetCalculator() {
+  document.getElementById("valueA").value = "";
+  document.getElementById("valueB").value = "";
+  setupUnits();
+  setupDynamicUI();
+  clearResult();
+  showMessage("Calculator reset.", "info");
 }
 
-function resetResults() {
-  document.getElementById('convertResultBox').classList.remove('show');
-  document.getElementById('arithResultBox').classList.remove('show');
-  document.getElementById('toVal').value      = '';
-  document.getElementById('arithResult').value = '';
+function mapFrontendUnitToBackend(unit) {
+  return unit;
 }
 
-// ══════════════════════════════════════════════
-// HISTORY
-// ══════════════════════════════════════════════
-function saveHistory(entry) {
-  entry.ts = Date.now();
-  history.unshift(entry);
-  if (history.length > 50) history = history.slice(0, 50);
-  localStorage.setItem('quanment_history', JSON.stringify(history));
+function buildRequestBody(type, operation, valueA, unitA, valueB, unitB, outputUnit) {
+  const body = {
+    thisQuantityDTO: {
+      value: valueA,
+      unit: mapFrontendUnitToBackend(unitA),
+      measurementType: type
+    },
+    thatQuantityDTO: {
+      value: operation === "convert" ? 1 : valueB,
+      unit: mapFrontendUnitToBackend(unitB),
+      measurementType: type
+    }
+  };
+
+  if (operation === "add" || operation === "subtract" || operation === "divide") {
+    body.outputUnit = mapFrontendUnitToBackend(outputUnit);
+  }
+
+  return body;
 }
 
-function showConverter() {
-  document.getElementById('converterSection').style.display = 'block';
-  document.getElementById('historySection').classList.remove('show');
-  document.getElementById('navConverter').classList.add('active');
-  document.getElementById('navHistory').classList.remove('active');
+async function callBackendOperation(endpoint, body) {
+  const response = await fetch(`${API_BASE}/api/v1/quantities/${endpoint}`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body)
+  });
+
+  const data = await parseResponse(response);
+
+  if (!response.ok) {
+    throw new Error(data.message || "Request failed.");
+  }
+
+  return data;
 }
 
-function showHistory() {
-  document.getElementById('converterSection').style.display = 'none';
-  document.getElementById('historySection').classList.add('show');
-  document.getElementById('navConverter').classList.remove('active');
-  document.getElementById('navHistory').classList.add('active');
-  renderHistory();
+function setResultState(type) {
+  const card = document.querySelector(".result-card");
+  if (!card) return;
+
+  card.classList.remove(
+    "compare-greater",
+    "compare-less",
+    "compare-equal",
+    "result-success"
+  );
+
+  if (type) {
+    card.classList.add(type);
+  }
 }
 
-function renderHistory() {
-  const list = document.getElementById('historyList');
-  if (!history.length) {
-    list.innerHTML = '<div class="history-empty">No calculations yet. Start converting!</div>';
+async function handleCalculate() {
+  clearMessage();
+  clearResult();
+
+  const type = document.getElementById("measurementType").value;
+  const operation = document.getElementById("operation").value;
+  const valueA = parseFloat(document.getElementById("valueA").value);
+  const rawValueB = document.getElementById("valueB").value;
+  const valueB = rawValueB === "" ? NaN : parseFloat(rawValueB);
+  const unitA = document.getElementById("unitA").value;
+  const unitB = document.getElementById("unitB").value;
+  const outputUnit = document.getElementById("outputUnit").value;
+
+  if (isNaN(valueA)) {
+    showMessage("Please enter the first value.", "error");
     return;
   }
 
-  list.innerHTML = history.map(h => `
-    <div class="history-item">
-      <span class="h-expr">${h.expr}</span>
-      <span class="h-arrow">→</span>
-      <span class="h-result">${h.result}</span>
-      <span class="h-badge ${h.op}">${h.op === 'convert' ? 'convert' : h.op} · ${h.type}</span>
-    </div>
-  `).join('');
+  if (operation !== "convert" && isNaN(valueB)) {
+    showMessage("Please enter the second value.", "error");
+    return;
+  }
+
+  try {
+    const body = buildRequestBody(type, operation, valueA, unitA, valueB, unitB, outputUnit);
+    const data = await callBackendOperation(operation, body);
+
+    if (typeof data === "number") {
+      const divideUnit = outputUnit || unitA;
+
+      setResultState("result-success");
+      showResult(
+        `${roundResult(data)}`,
+        `${roundResult(valueA)} ${formatLabel(unitA)} ÷ ${roundResult(valueB)} ${formatLabel(unitB)}`
+      );
+
+      setSummary(
+        `Calculated using ${formatLabel(divideUnit)} as reference.`,
+        "Result is unitless."
+      );
+
+      showMessage("Division successful.", "success");
+      return;
+    }
+
+    if (data.error) {
+      setResultState("");
+      showResult("Error", data.message || "Operation failed.");
+      setSummary(formatLabel(operation), data.message || "Operation failed.");
+      showMessage(data.message || "Operation failed.", "error");
+      return;
+    }
+
+    if (operation === "compare") {
+      let compareText = data.message || "Comparison completed.";
+      let compareState = "compare-equal";
+      let compareSymbol = "=";
+
+      if (!data.message) {
+        if (data.result === 1) {
+          compareText = "First quantity is greater.";
+          compareState = "compare-greater";
+          compareSymbol = ">";
+        } else if (data.result === -1) {
+          compareText = "Second quantity is greater.";
+          compareState = "compare-less";
+          compareSymbol = "<";
+        } else {
+          compareText = "Both quantities are equal.";
+          compareState = "compare-equal";
+          compareSymbol = "=";
+        }
+      } else {
+        if (data.result === 1) {
+          compareState = "compare-greater";
+          compareSymbol = ">";
+        } else if (data.result === -1) {
+          compareState = "compare-less";
+          compareSymbol = "<";
+        }
+      }
+
+      setResultState(compareState);
+      showResult(compareSymbol, compareText);
+      setSummary(
+        `${roundResult(valueA)} ${formatLabel(unitA)} ${compareSymbol} ${roundResult(valueB)} ${formatLabel(unitB)}`,
+        "Comparison processed successfully."
+      );
+      showMessage("Comparison successful.", "success");
+      return;
+    }
+
+    if (operation === "convert") {
+      setResultState("result-success");
+      showResult(
+        `${roundResult(data.result)} ${formatLabel(unitB)}`,
+        `${roundResult(valueA)} ${formatLabel(unitA)} = ${roundResult(data.result)} ${formatLabel(unitB)}`
+      );
+      setSummary("Conversion completed successfully.", "Processed by Spring Boot.");
+      showMessage("Conversion successful.", "success");
+      return;
+    }
+
+    const resultUnit = operation === "add" || operation === "subtract" ? outputUnit : unitA;
+
+    setResultState("result-success");
+    showResult(
+      `${roundResult(data.result)} ${formatLabel(resultUnit)}`,
+      `${formatLabel(operation)} result`
+    );
+    setSummary(
+      `${roundResult(valueA)} ${formatLabel(unitA)} ${symbolFor(operation)} ${roundResult(valueB)} ${formatLabel(unitB)}`,
+      "Processed by Spring Boot."
+    );
+    showMessage(`${formatLabel(operation)} successful.`, "success");
+  } catch (error) {
+    setResultState("");
+    showMessage(error.message || "Something went wrong.", "error");
+  }
 }
 
-function clearHistory() {
-  if (!confirm('Clear all history?')) return;
-  history = [];
-  localStorage.removeItem('quanment_history');
-  renderHistory();
+async function loadHistory() {
+  clearMessage();
+
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/quantities/history`, {
+      method: "GET",
+      headers: getAuthHeaders()
+    });
+
+    const data = await parseResponse(response);
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to load history.");
+    }
+
+    renderHistory(data);
+    showMessage("History loaded successfully.", "success");
+  } catch (error) {
+    showMessage(error.message || "Unable to load history. Check backend endpoint or token.", "error");
+  }
 }
 
-// ══════════════════════════════════════════════
-// KEYBOARD SUPPORT
-// ══════════════════════════════════════════════
-document.addEventListener('keydown', function (e) {
-  if (e.key !== 'Enter') return;
-  if (currentOperation === 'convert') doConvert();
-  else doArith();
-});
+function renderHistory(items) {
+  const historyList = document.getElementById("historyList");
 
-// Attach data-op attributes to op cards on load
-// (needed so setType can reference them)
-document.addEventListener('DOMContentLoaded', function () {
-  const ops = ['convert', 'add', 'subtract', 'multiply', 'divide'];
-  document.querySelectorAll('.op-card').forEach((card, i) => {
-    card.dataset.op = ops[i];
+  if (!Array.isArray(items) || items.length === 0) {
+    historyList.innerHTML = `<p class="empty-text">No history found.</p>`;
+    return;
+  }
+
+  historyList.innerHTML = items.map(item => {
+    const statusClass = item.error ? "error" : "success";
+    const details = item.error
+      ? (item.errorMessage || "Operation failed")
+      : `${item.operand1 ?? "—"}, ${item.operand2 ?? "—"} → ${item.result ?? "—"}`;
+
+    return `
+      <div class="history-item ${statusClass}">
+        <div>
+          <strong>${item.operation || "Operation"}</strong>
+          <p>${details}</p>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function clearHistoryView() {
+  document.getElementById("historyList").innerHTML = `<p class="empty-text">No history loaded yet.</p>`;
+  showMessage("History view cleared.", "info");
+}
+
+function showMessage(message, type) {
+  const box = document.getElementById("messageBox");
+  box.textContent = message;
+  box.className = `message-box ${type}`;
+}
+
+function clearMessage() {
+  const box = document.getElementById("messageBox");
+  box.textContent = "";
+  box.className = "message-box";
+}
+
+function showResult(value, text) {
+  document.getElementById("resultValue").textContent = value ?? "—";
+  document.getElementById("resultText").textContent = text || "Result loaded.";
+}
+
+function clearResult() {
+  document.getElementById("resultValue").textContent = "—";
+  document.getElementById("resultText").textContent = "Your result will appear here.";
+  setSummary("No calculation yet.", "Ready.");
+  setResultState("");
+}
+
+function setSummary(summary, status) {
+  document.getElementById("summaryLine").textContent = summary;
+  document.getElementById("statusLine").textContent = status;
+}
+
+async function parseResponse(response) {
+  const text = await response.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return { message: text || "Unexpected server response." };
+  }
+}
+
+function roundResult(value) {
+  return Number(value).toFixed(4).replace(/\.?0+$/, "");
+}
+
+function formatLabel(value) {
+  return String(value)
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function symbolFor(operation) {
+  if (operation === "add") return "+";
+  if (operation === "subtract") return "-";
+  if (operation === "divide") return "÷";
+  return "";
+}
+
+function logout() {
+  const token = getStoredToken();
+
+  fetch(`${API_BASE}/auth/logout`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`
+    }
+  }).finally(() => {
+    localStorage.removeItem("quanmentToken");
+    localStorage.removeItem("quanmentUserName");
+    localStorage.removeItem("quanmentUserEmail");
+
+    sessionStorage.removeItem("quanmentToken");
+    sessionStorage.removeItem("quanmentUserName");
+    sessionStorage.removeItem("quanmentUserEmail");
+
+    window.location.href = "index.html";
   });
-});
+}
