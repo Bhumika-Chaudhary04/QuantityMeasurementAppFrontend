@@ -80,84 +80,46 @@ function mapMeasurementType(type) {
   return map[type] || type.toUpperCase();
 }
 
-function prettifyUnit(unit) {
-  if (!unit) return "";
-  const normalized = String(unit).replace(/_/g, " ").toLowerCase();
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-}
-
 function formatNumber(value) {
   if (value === null || value === undefined || value === "") return "-";
 
   const num = Number(value);
   if (Number.isNaN(num)) return String(value);
 
-  return Number.isInteger(num) ? String(num) : parseFloat(num.toFixed(4)).toString();
-}
-
-function getOperationSymbol(operation) {
-  switch (String(operation).toUpperCase()) {
-    case "ADD":
-      return "+";
-    case "SUBTRACT":
-      return "-";
-    case "DIVIDE":
-      return "÷";
-    case "COMPARE":
-      return "vs";
-    default:
-      return "→";
-  }
+  return Number.isInteger(num)
+    ? String(num)
+    : parseFloat(num.toFixed(4)).toString();
 }
 
 function buildHistoryMessage(item) {
   if (!item) return "No details available.";
 
   const operation = String(item.operation || "").toUpperCase();
+  const a = formatNumber(item.operand1);
+  const b = formatNumber(item.operand2);
+  const r = formatNumber(item.result);
 
-  const firstValue = formatNumber(item.firstValue);
-  const secondValue = formatNumber(item.secondValue);
-  const resultValue = formatNumber(item.result);
-
-  const firstUnit = prettifyUnit(item.firstUnit);
-  const secondUnit = prettifyUnit(item.secondUnit);
-  const outputUnit = prettifyUnit(item.outputUnit);
-
-  const firstPart =
-    firstValue !== "-" ? `${firstValue}${firstUnit ? ` ${firstUnit}` : ""}` : "-";
-
-  const secondPart =
-    secondValue !== "-" ? `${secondValue}${secondUnit ? ` ${secondUnit}` : ""}` : "-";
-
-  const resultPart =
-    resultValue !== "-" ? `${resultValue}${outputUnit ? ` ${outputUnit}` : ""}` : "-";
-
-  if (item.message && String(item.message).trim()) {
-    return item.message;
+  if (item.error) {
+    return item.errorMessage || `${operation} failed.`;
   }
 
-  if (operation === "CONVERT") {
-    return `${firstPart} → ${resultPart}`;
+  switch (operation) {
+    case "CONVERT":
+      return `${a} → ${r}`;
+    case "ADD":
+      return `${a} + ${b} = ${r}`;
+    case "SUBTRACT":
+      return `${a} - ${b} = ${r}`;
+    case "DIVIDE":
+      return `${a} ÷ ${b} = ${r}`;
+    case "COMPARE":
+      if (Number(item.result) === 1) return `${a} vs ${b} → First greater`;
+      if (Number(item.result) === -1) return `${a} vs ${b} → Second greater`;
+      if (Number(item.result) === 0) return `${a} vs ${b} → Equal`;
+      return `${a} vs ${b}`;
+    default:
+      return `${operation}: ${r}`;
   }
-
-  if (operation === "COMPARE") {
-    if (item.result === 0 || item.result === "0") {
-      return `${firstPart} vs ${secondPart} → Equal`;
-    }
-    if (item.result === 1 || item.result === "1") {
-      return `${firstPart} vs ${secondPart} → First quantity is greater`;
-    }
-    if (item.result === -1 || item.result === "-1") {
-      return `${firstPart} vs ${secondPart} → Second quantity is greater`;
-    }
-    return `${firstPart} vs ${secondPart} → Comparison completed`;
-  }
-
-  if (operation === "ADD" || operation === "SUBTRACT" || operation === "DIVIDE") {
-    return `${firstPart} ${getOperationSymbol(operation)} ${secondPart} = ${resultPart}`;
-  }
-
-  return `First: ${firstPart}, Second: ${secondPart}, Result: ${resultPart}`;
 }
 
 export default function DashboardPage() {
@@ -275,7 +237,7 @@ export default function DashboardPage() {
         measurementType: backendMeasurementType,
       },
       outputUnit:
-        operation === "Compare"
+        operation === "Compare" || operation === "Divide"
           ? null
           : outputUnit
           ? mapUnit(outputUnit)
@@ -303,12 +265,12 @@ export default function DashboardPage() {
       return "Comparison completed.";
     }
 
-    if (operation === "Divide") {
-      return String(data?.result ?? data ?? "—");
-    }
-
     if (data?.result !== undefined && data?.result !== null) {
-      return outputUnit ? `${data.result} ${outputUnit}` : String(data.result);
+      return operation === "Divide"
+        ? String(data.result)
+        : outputUnit
+        ? `${data.result} ${outputUnit}`
+        : String(data.result);
     }
 
     return "—";
@@ -319,12 +281,12 @@ export default function DashboardPage() {
       return data?.message || "Comparison completed.";
     }
 
-    if (operation === "Divide") {
-      return "Division completed.";
-    }
-
     if (data?.error) {
       return data?.message || "Operation failed.";
+    }
+
+    if (operation === "Divide") {
+      return data?.message || "Division completed successfully.";
     }
 
     return `${operation} completed successfully.`;
@@ -340,7 +302,7 @@ export default function DashboardPage() {
     }
 
     if (operation === "Divide") {
-      return `${valueA} ${unitA} ÷ ${valueB} ${unitB} = ${formatResult(data)}`;
+      return `${valueA} ${unitA} ÷ ${valueB} ${unitB} = ${data?.result ?? "—"}`;
     }
 
     const symbol =
@@ -388,7 +350,7 @@ export default function DashboardPage() {
         throw new Error(data?.message || `${operation} failed.`);
       }
 
-      if (operation !== "Divide" && data?.error) {
+      if (data?.error) {
         throw new Error(data?.message || `${operation} failed.`);
       }
 
@@ -451,6 +413,64 @@ export default function DashboardPage() {
     setStatusLine("History view cleared.");
   }
 
+  async function deleteAllHistory() {
+    const confirmed = window.confirm(
+      "Are you sure you want to permanently delete all your history?"
+    );
+
+    if (!confirmed) return;
+
+    setHistoryLoading(true);
+    setStatusLine("Deleting all history...");
+
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/quantities/history`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete history.");
+      }
+
+      setHistory([]);
+      setHistoryLoaded(true);
+      setStatusLine("All history deleted permanently.");
+    } catch (error) {
+      setStatusLine(error.message || "Failed to delete history.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function deleteHistoryItem(id) {
+    const confirmed = window.confirm(
+      "Delete this history item permanently?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/quantities/history/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete history item.");
+      }
+
+      setHistory((prev) => prev.filter((item) => item.id !== id));
+      setStatusLine("History item deleted.");
+    } catch (error) {
+      setStatusLine(error.message || "Failed to delete history item.");
+    }
+  }
+
   const showSecondInput = operation !== "Convert";
   const isTemperature = measurementType === "temperature";
   const showOutputUnit = operation !== "Compare" && operation !== "Divide";
@@ -469,155 +489,185 @@ export default function DashboardPage() {
         <div className="topbar-right">
           <span className="user-name">{userName}</span>
           <button className="logout-btn" onClick={logout} type="button">
-            Logout
+            Sign out
           </button>
         </div>
       </nav>
 
-      <main className="dashboard-container">
-        <section className="hero-card">
-          <div className="hero-left">
-            <span className="hero-badge">Dashboard</span>
-            <h1>Welcome to Quanment</h1>
-            <p>
-              Convert, compare and calculate measurements with a cleaner and
-              compact workspace.
-            </p>
-          </div>
-
-          <div className="hero-right">
-            <div className="hero-mini-card">
-              <span>📏</span>
-              <strong>Conversions</strong>
-              <p>Smart and quick</p>
+      <main className="dashboard-shell">
+        <div className="dashboard-container">
+          <section className="hero-card">
+            <div className="hero-left">
+              <span className="hero-badge">Dashboard</span>
+              <h1>Welcome back, {userName} 👋</h1>
+              <p>
+                Convert, compare and calculate measurements in a clean,
+                focused workspace. Fast inputs, readable results, and less
+                clutter.
+              </p>
             </div>
-            <div className="hero-mini-card">
-              <span>🧠</span>
-              <strong>Compare</strong>
-              <p>Across units</p>
-            </div>
-            <div className="hero-mini-card">
-              <span>⚡</span>
-              <strong>Fast UI</strong>
-              <p>Less scrolling</p>
-            </div>
-          </div>
-        </section>
 
-        <section className="dashboard-grid">
-          <div className="left-panel">
-            <section className="tool-card">
-              <div className="tool-header">
-                <div>
-                  <h2>Measurement Calculator</h2>
-                  <p>
-                    {isTemperature
-                      ? "Temperature only supports convert and compare."
-                      : "Select your measurement type and operation."}
-                  </p>
-                </div>
-
-                <div className="tool-actions-top">
-                  <button
-                    className="secondary-btn small-btn"
-                    onClick={swapUnits}
-                    type="button"
-                    disabled={!showSecondInput || operation === "Compare"}
-                  >
-                    Swap Units
-                  </button>
-                  <button
-                    className="secondary-btn small-btn"
-                    onClick={resetForm}
-                    type="button"
-                  >
-                    Reset
-                  </button>
-                </div>
+            <div className="hero-right">
+              <div className="hero-mini-card">
+                <span>📏</span>
+                <strong>Conversions</strong>
+                <p>Smart & precise</p>
               </div>
-
-              <div className="tool-grid compact-two">
-                <div className="field-group">
-                  <label>Measurement Type</label>
-                  <select
-                    value={measurementType}
-                    onChange={(e) => setMeasurementType(e.target.value)}
-                  >
-                    {Object.entries(TYPES).map(([key, item]) => (
-                      <option key={key} value={key}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="field-group">
-                  <label>Operation</label>
-                  <select
-                    value={operation}
-                    onChange={(e) => setOperation(e.target.value)}
-                  >
-                    {operations.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="hero-mini-card">
+                <span>🧠</span>
+                <strong>Compare</strong>
+                <p>Across any unit</p>
               </div>
+              <div className="hero-mini-card">
+                <span>⚡</span>
+                <strong>Fast UI</strong>
+                <p>No distractions</p>
+              </div>
+            </div>
+          </section>
 
-              <div className="input-grid">
-                <div className="input-card">
-                  <div className="card-top">
-                    <h3>Quantity A</h3>
+          <section className="dashboard-grid">
+            <div className="left-panel">
+              <section className="tool-card">
+                <div className="tool-header">
+                  <div>
+                    <h2>Measurement Calculator</h2>
+                    <p>
+                      {isTemperature
+                        ? "Temperature supports only Convert and Compare."
+                        : operation === "Divide"
+                        ? "Division returns a ratio, so no output unit is needed."
+                        : "Select a measurement type and operation to begin."}
+                    </p>
                   </div>
 
-                  <div className="field-group">
-                    <label>Value</label>
-                    <input
-                      type="number"
-                      placeholder="Enter first value"
-                      value={valueA}
-                      onChange={(e) => setValueA(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="field-group">
-                    <label>Unit</label>
-                    <select
-                      value={unitA}
-                      onChange={(e) => setUnitA(e.target.value)}
+                  <div className="tool-actions-top">
+                    <button
+                      className="secondary-btn small-btn"
+                      onClick={swapUnits}
+                      type="button"
+                      disabled={!showSecondInput || operation === "Compare"}
                     >
-                      {units.map((unit) => (
-                        <option key={unit} value={unit}>
-                          {unit}
+                      Swap
+                    </button>
+                    <button
+                      className="secondary-btn small-btn"
+                      onClick={resetForm}
+                      type="button"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+
+                <div className="tool-grid compact-two">
+                  <div className="field-group">
+                    <label>Measurement Type</label>
+                    <select
+                      value={measurementType}
+                      onChange={(e) => setMeasurementType(e.target.value)}
+                    >
+                      {Object.entries(TYPES).map(([key, item]) => (
+                        <option key={key} value={key}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="field-group">
+                    <label>Operation</label>
+                    <select
+                      value={operation}
+                      onChange={(e) => setOperation(e.target.value)}
+                    >
+                      {operations.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
                         </option>
                       ))}
                     </select>
                   </div>
                 </div>
 
-                {showSecondInput && (
+                <div className="input-grid">
                   <div className="input-card">
                     <div className="card-top">
-                      <h3>Quantity B</h3>
+                      <h3>Quantity A</h3>
+                      <span className="mini-chip">First</span>
                     </div>
 
-                    <div className="field-group">
+                    <div className="field-group" style={{ marginTop: "14px" }}>
                       <label>Value</label>
                       <input
                         type="number"
-                        placeholder="Enter second value"
-                        value={valueB}
-                        onChange={(e) => setValueB(e.target.value)}
+                        placeholder="Enter first value"
+                        value={valueA}
+                        onChange={(e) => setValueA(e.target.value)}
                       />
                     </div>
 
                     <div className="field-group">
                       <label>Unit</label>
                       <select
-                        value={unitB}
-                        onChange={(e) => setUnitB(e.target.value)}
+                        value={unitA}
+                        onChange={(e) => setUnitA(e.target.value)}
+                      >
+                        {units.map((unit) => (
+                          <option key={unit} value={unit}>
+                            {unit}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {showSecondInput && (
+                    <div className="input-card">
+                      <div className="card-top">
+                        <h3>Quantity B</h3>
+                        <span className="mini-chip">Second</span>
+                      </div>
+
+                      <div className="field-group" style={{ marginTop: "14px" }}>
+                        <label>Value</label>
+                        <input
+                          type="number"
+                          placeholder="Enter second value"
+                          value={valueB}
+                          onChange={(e) => setValueB(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="field-group">
+                        <label>Unit</label>
+                        <select
+                          value={unitB}
+                          onChange={(e) => setUnitB(e.target.value)}
+                        >
+                          {units.map((unit) => (
+                            <option key={unit} value={unit}>
+                              {unit}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {showOutputUnit && (
+                  <div className="output-card">
+                    <div className="card-top">
+                      <h3>Output Unit</h3>
+                      <span className="mini-chip">Result</span>
+                    </div>
+
+                    <div className="field-group" style={{ marginTop: "14px" }}>
+                      <label>Result Unit</label>
+                      <select
+                        value={outputUnit}
+                        onChange={(e) => setOutputUnit(e.target.value)}
                       >
                         {units.map((unit) => (
                           <option key={unit} value={unit}>
@@ -628,105 +678,115 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 )}
-              </div>
 
-              {showOutputUnit && (
-                <div className="output-card">
-                  <div className="card-top">
-                    <h3>Output Unit</h3>
-                  </div>
+                <div className="action-row">
+                  <button
+                    className="primary-btn"
+                    onClick={calculate}
+                    type="button"
+                    disabled={loading}
+                    style={{ flex: 1 }}
+                  >
+                    {loading ? "Calculating..." : "Calculate →"}
+                  </button>
+                </div>
+              </section>
+            </div>
 
-                  <div className="field-group">
-                    <label>Result Unit</label>
-                    <select
-                      value={outputUnit}
-                      onChange={(e) => setOutputUnit(e.target.value)}
-                    >
-                      {units.map((unit) => (
-                        <option key={unit} value={unit}>
-                          {unit}
-                        </option>
-                      ))}
-                    </select>
+            <div className="right-panel">
+              <section className="result-card highlight-card">
+                <div className="card-top">
+                  <h3>Live Result</h3>
+                  <span className="mini-chip">
+                    {operation === "Divide" ? "Ratio" : "Output"}
+                  </span>
+                </div>
+
+                <div className="result-value">{resultValue}</div>
+                <p className="result-text">{resultText}</p>
+
+                <div className="summary-box">
+                  <p className="summary-line">{summaryLine}</p>
+                  <p className="summary-line muted">{statusLine}</p>
+                </div>
+              </section>
+
+              <section className="history-card">
+                <div className="history-header">
+                  <div>
+                    <h2>Calculation History</h2>
+                    <p>View, clear from screen, or permanently delete your own history.</p>
                   </div>
                 </div>
-              )}
 
-              <div className="action-row">
-                <button
-                  className="primary-btn"
-                  onClick={calculate}
-                  type="button"
-                  disabled={loading}
-                >
-                  {loading ? "Calculating..." : "Calculate"}
-                </button>
-              </div>
-            </section>
-          </div>
+                <div className="history-list">
+                  {!historyLoaded ? (
+                    <p className="empty-text">Press "Load History" to view past calculations.</p>
+                  ) : history.length === 0 ? (
+                    <p className="empty-text">No history available.</p>
+                  ) : (
+                    history.map((item, index) => (
+                      <div className="history-item" key={item.id || index}>
+                        <div className="history-item-top">
+                          <span className="history-operation-badge">
+                            {String(item.operation || "Operation").toUpperCase()}
+                          </span>
 
-          <div className="right-panel">
-            <section className="result-card highlight-card">
-              <div className="card-top">
-                <h3>Live Result</h3>
-              </div>
+                          {item.id && (
+                            <button
+                              className="danger-btn small-btn"
+                              type="button"
+                              onClick={() => deleteHistoryItem(item.id)}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
 
-              <div className="result-value">{resultValue}</div>
-              <p className="result-text">{resultText}</p>
-
-              <div className="summary-box">
-                <p className="summary-line">{summaryLine}</p>
-                <p className="summary-line muted">{statusLine}</p>
-              </div>
-            </section>
-
-            <section className="history-card">
-              <div className="history-header">
-                <h2>Calculation History</h2>
-              </div>
-
-              <div className="history-list">
-                {!historyLoaded ? (
-                  <p className="empty-text">No history loaded yet.</p>
-                ) : history.length === 0 ? (
-                  <p className="empty-text">No history available.</p>
-                ) : (
-                  history.map((item, index) => (
-                    <div className="history-item" key={item.id || index}>
-                      <div className="history-item-top">
-                        <span className="history-operation-badge">
-                          {String(item.operation || "Operation").toUpperCase()}
-                        </span>
+                        <div className="history-item-body">
+                          <p>{buildHistoryMessage(item)}</p>
+                          {item.error && (
+                            <p className="summary-line muted" style={{ marginTop: "8px" }}>
+                              Error entry
+                            </p>
+                          )}
+                        </div>
                       </div>
+                    ))
+                  )}
+                </div>
 
-                      <div className="history-item-body">
-                        <p>{buildHistoryMessage(item)}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+                <div className="history-actions-bottom">
+                  <button
+                    className="secondary-btn"
+                    type="button"
+                    onClick={loadHistory}
+                    disabled={historyLoading}
+                  >
+                    {historyLoading ? "Loading..." : "Load History"}
+                  </button>
 
-              <div className="history-actions-bottom">
-                <button
-                  className="secondary-btn"
-                  type="button"
-                  onClick={loadHistory}
-                  disabled={historyLoading}
-                >
-                  {historyLoading ? "Loading..." : "Load History"}
-                </button>
-                <button
-                  className="danger-btn"
-                  type="button"
-                  onClick={clearHistoryView}
-                >
-                  Clear View
-                </button>
-              </div>
-            </section>
-          </div>
-        </section>
+                  <button
+                    className="secondary-btn"
+                    type="button"
+                    onClick={clearHistoryView}
+                  >
+                    Clear View
+                  </button>
+
+                  <button
+                    className="danger-btn"
+                    type="button"
+                    onClick={deleteAllHistory}
+                    disabled={historyLoading}
+                  >
+                    Delete All Permanently
+                  </button>
+                </div>
+              </section>
+            </div>
+          </section>
+        </div>
       </main>
     </>
   );

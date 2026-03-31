@@ -12,6 +12,8 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [alert, setAlert] = useState({ message: "", type: "" });
   const [loading, setLoading] = useState(false);
@@ -30,11 +32,41 @@ export default function SignupPage() {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
 
+  function getPasswordStrength(pw) {
+    if (!pw) return { score: 0, label: "", color: "" };
+
+    let score = 0;
+    if (pw.length >= 6) score++;
+    if (pw.length >= 10) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+
+    const levels = [
+      { label: "", color: "transparent" },
+      { label: "Weak", color: "#f43f5e" },
+      { label: "Fair", color: "#f59e0b" },
+      { label: "Good", color: "#6366f1" },
+      { label: "Strong", color: "#10b981" },
+      { label: "Very strong", color: "#10b981" },
+    ];
+
+    return { score, ...levels[score] };
+  }
+
+  const strength = getPasswordStrength(password);
+
   async function handleSignup(e) {
     e.preventDefault();
     setAlert({ message: "", type: "" });
 
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password || !confirmPassword) {
+    if (
+      !firstName.trim() ||
+      !lastName.trim() ||
+      !email.trim() ||
+      !password ||
+      !confirmPassword
+    ) {
       setAlert({ message: "Please fill all fields.", type: "error" });
       return;
     }
@@ -45,7 +77,10 @@ export default function SignupPage() {
     }
 
     if (password.length < 6) {
-      setAlert({ message: "Password must be at least 6 characters.", type: "error" });
+      setAlert({
+        message: "Password must be at least 6 characters.",
+        type: "error",
+      });
       return;
     }
 
@@ -55,7 +90,10 @@ export default function SignupPage() {
     }
 
     if (!agreeTerms) {
-      setAlert({ message: "Please accept the Terms & Conditions.", type: "error" });
+      setAlert({
+        message: "Please accept the Terms & Conditions.",
+        type: "error",
+      });
       return;
     }
 
@@ -65,15 +103,13 @@ export default function SignupPage() {
       const payload = {
         email: email.trim(),
         name: `${firstName} ${lastName}`.trim(),
-        password
+        password,
       };
 
       const response = await fetch(`${API_BASE}/auth/register`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json().catch(() => ({}));
@@ -88,13 +124,16 @@ export default function SignupPage() {
         data.email || payload.email
       );
 
-      setAlert({ message: "Account created successfully! Redirecting...", type: "success" });
+      setAlert({ message: "Account created! Redirecting…", type: "success" });
 
       setTimeout(() => {
         navigate("/dashboard");
       }, 700);
     } catch (error) {
-      setAlert({ message: error.message || "Something went wrong.", type: "error" });
+      setAlert({
+        message: error.message || "Something went wrong.",
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -108,7 +147,7 @@ export default function SignupPage() {
   return (
     <div className="auth-layout">
       <section className="auth-left">
-        <div className="auth-overlay"></div>
+        <div className="auth-overlay" />
 
         <div className="brand">
           <div className="brand-icon">Q</div>
@@ -122,15 +161,30 @@ export default function SignupPage() {
           <span className="mini-badge">Get Started</span>
           <h1>Start using a cleaner measurement experience.</h1>
           <p>
-            Sign up and access your compact, colorful, and interactive
-            conversion dashboard.
+            Sign up and access your compact, interactive conversion dashboard —
+            built for speed and precision.
           </p>
 
           <div className="feature-list">
             <div className="feature-item">✨ Modern UI</div>
-            <div className="feature-item">🎯 Focused tools</div>
-            <div className="feature-item">🚀 Faster workflow</div>
-            <div className="feature-item">🔐 Secure login</div>
+            <div className="feature-item">🎯 Focused workflow</div>
+            <div className="feature-item">🚀 Faster calculations</div>
+            <div className="feature-item">🔐 Secure sign in</div>
+          </div>
+        </div>
+
+        <div className="left-bottom">
+          <div className="left-stat">
+            <strong>Rich</strong>
+            <span>Readable interface</span>
+          </div>
+          <div className="left-stat">
+            <strong>Quick</strong>
+            <span>Easy onboarding</span>
+          </div>
+          <div className="left-stat">
+            <strong>Smart</strong>
+            <span>Built for conversions</span>
           </div>
         </div>
       </section>
@@ -143,7 +197,7 @@ export default function SignupPage() {
             <p>Join Quanment for free</p>
           </div>
 
-          <div className={`alert ${alert.type}`}>{alert.message}</div>
+          {alert.message && <div className={`alert ${alert.type}`}>{alert.message}</div>}
 
           <form onSubmit={handleSignup}>
             <div className="field-row">
@@ -183,24 +237,64 @@ export default function SignupPage() {
 
             <div className="field-group">
               <label>Password</label>
-              <input
-                className="field-input"
-                type="password"
-                placeholder="Minimum 6 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="password-wrap">
+                <input
+                  className="field-input"
+                  type={showPw ? "text" : "password"}
+                  placeholder="Minimum 6 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{ paddingRight: "48px" }}
+                />
+                <button
+                  type="button"
+                  className="toggle-pw"
+                  onClick={() => setShowPw(!showPw)}
+                  aria-label="Toggle password"
+                >
+                  {showPw ? "🙈" : "👁"}
+                </button>
+              </div>
+
+              <div className="strength-wrap">
+                <div className="strength-bar">
+                  <div
+                    className="strength-fill"
+                    style={{
+                      width: `${(strength.score / 5) * 100}%`,
+                      background: strength.color,
+                    }}
+                  />
+                </div>
+                <div
+                  className="strength-text"
+                  style={{ color: strength.color || "rgba(248,250,252,0.5)" }}
+                >
+                  {strength.label}
+                </div>
+              </div>
             </div>
 
             <div className="field-group">
               <label>Confirm Password</label>
-              <input
-                className="field-input"
-                type="password"
-                placeholder="Repeat your password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
+              <div className="password-wrap">
+                <input
+                  className="field-input"
+                  type={showConfirm ? "text" : "password"}
+                  placeholder="Repeat your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  style={{ paddingRight: "48px" }}
+                />
+                <button
+                  type="button"
+                  className="toggle-pw"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  aria-label="Toggle confirm password"
+                >
+                  {showConfirm ? "🙈" : "👁"}
+                </button>
+              </div>
             </div>
 
             <div className="terms-row">
@@ -215,7 +309,7 @@ export default function SignupPage() {
             </div>
 
             <button type="submit" className="auth-btn" disabled={loading}>
-              {loading ? "Creating Account..." : "Create Account"}
+              {loading ? "Creating Account…" : "Create Account →"}
             </button>
 
             <div className="divider">
@@ -226,14 +320,14 @@ export default function SignupPage() {
               <img
                 src="https://www.svgrepo.com/show/475656/google-color.svg"
                 width="18"
+                alt="Google"
               />
               Continue with Google
             </button>
           </form>
 
           <p className="switch-text">
-            Already have an account?
-            <Link to="/"> Sign in</Link>
+            Already have an account? <Link to="/">Sign in</Link>
           </p>
         </div>
       </section>
