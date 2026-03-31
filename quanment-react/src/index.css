@@ -1,0 +1,5 @@
+.auth-left,
+.auth-right {
+  flex: 1;
+  height: 100%;
+}
