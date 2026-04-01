@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../css/dashboard.css";
 
-const API_BASE = "http://localhost:8080";
-
+import API_BASE from "../config";
 const TYPES = {
   length: {
     label: "Length",
